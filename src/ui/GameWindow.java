@@ -6,6 +6,7 @@ import ui.theme.AppTheme;
 import javax.swing.*;
 import javax.swing.border.*;
 import java.awt.*;
+import java.awt.event.*;
 
 /**
  * GameWindow — Builds and owns all UI panels and components.
@@ -377,6 +378,98 @@ public class GameWindow extends JFrame {
         paperBtn.setEnabled(enabled);
         scissorsBtn.setEnabled(enabled);
         movePanel.repaint();
+    }
+
+    /**
+     * Shows a full-screen Game Over dialog with the final winner.
+     * Called after all 10 rounds are complete.
+     */
+    public void showGameOverDialog(boolean iWon, boolean isDraw,
+                                   int p1Score, int p2Score,
+                                   String playerRole, String playerName) {
+        // Build a modal dialog styled to match the dark theme
+        JDialog dialog = new JDialog(this, "Game Over", true);
+        dialog.setUndecorated(true);
+        dialog.setSize(420, 320);
+        dialog.setLocationRelativeTo(this);
+
+        JPanel panel = new JPanel(new BorderLayout(0, 0)) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(AppTheme.BG_CARD);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                // colored top bar
+                Color barColor = isDraw ? AppTheme.DRAW_COLOR
+                               : iWon  ? AppTheme.WIN_COLOR
+                               :         AppTheme.LOSE_COLOR;
+                g2.setColor(barColor);
+                g2.fillRoundRect(0, 0, getWidth(), 6, 4, 4);
+                // border
+                g2.setColor(new Color(barColor.getRed(), barColor.getGreen(), barColor.getBlue(), 100));
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawRoundRect(1, 1, getWidth()-2, getHeight()-2, 20, 20);
+                g2.dispose();
+            }
+        };
+        panel.setOpaque(false);
+        panel.setBorder(new EmptyBorder(28, 36, 28, 36));
+
+        // Trophy / result emoji
+        String resultEmoji = isDraw ? "🤝" : iWon ? "🏆" : "💀";
+        JLabel emojiLbl = new JLabel(resultEmoji, SwingConstants.CENTER);
+        emojiLbl.setFont(new Font("Dialog", Font.PLAIN, 52));
+
+        // Main result heading
+        String heading = isDraw ? "It's a Draw!" : iWon ? "You Win!" : "You Lose!";
+        JLabel headingLbl = new JLabel(heading, SwingConstants.CENTER);
+        headingLbl.setFont(new Font("Dialog", Font.BOLD, 28));
+        Color headingColor = isDraw ? AppTheme.DRAW_COLOR
+                           : iWon  ? AppTheme.WIN_COLOR
+                           :         AppTheme.LOSE_COLOR;
+        headingLbl.setForeground(headingColor);
+
+        // Score summary
+        String myScore  = playerRole.equals("PLAYER1") ? String.valueOf(p1Score) : String.valueOf(p2Score);
+        String oppScore = playerRole.equals("PLAYER1") ? String.valueOf(p2Score) : String.valueOf(p1Score);
+        JLabel scoreLbl = new JLabel(
+            playerName + "  " + myScore + "  —  " + oppScore + "  Opponent",
+            SwingConstants.CENTER
+        );
+        scoreLbl.setFont(new Font("Dialog", Font.BOLD, 15));
+        scoreLbl.setForeground(AppTheme.TEXT_DIM);
+
+        JLabel subLbl = new JLabel("Final score after 10 rounds", SwingConstants.CENTER);
+        subLbl.setFont(new Font("Dialog", Font.PLAIN, 12));
+        subLbl.setForeground(new Color(80, 90, 120));
+
+        // Close button
+        GlowButton closeBtn = new GlowButton("Close", AppTheme.ACCENT_BLUE);
+        closeBtn.addActionListener(e -> {
+            dialog.dispose();
+            System.exit(0);
+        });
+
+        // Layout
+        JPanel topPanel = new JPanel(new GridLayout(2, 1, 0, 6));
+        topPanel.setOpaque(false);
+        topPanel.add(emojiLbl);
+        topPanel.add(headingLbl);
+
+        JPanel midPanel = new JPanel(new GridLayout(2, 1, 0, 4));
+        midPanel.setOpaque(false);
+        midPanel.setBorder(new EmptyBorder(14, 0, 14, 0));
+        midPanel.add(scoreLbl);
+        midPanel.add(subLbl);
+
+        panel.add(topPanel,  BorderLayout.NORTH);
+        panel.add(midPanel,  BorderLayout.CENTER);
+        panel.add(closeBtn,  BorderLayout.SOUTH);
+
+        dialog.setContentPane(panel);
+        dialog.setBackground(new Color(0, 0, 0, 0));
+        dialog.getRootPane().setOpaque(false);
+        dialog.setVisible(true);
     }
 
     private static String capitalize(String s) {

@@ -4,10 +4,12 @@ import java.io.*;
 import java.net.*;
 
 /**
- * GameSession — Handles one full game between two connected players.
- * Runs on its own thread so the server can host multiple games at once.
+ * GameSession — Handles one full game of exactly 10 rounds.
+ * After 10 rounds, declares a winner based on score and sends GAME_OVER.
  */
 public class GameSession implements Runnable {
+
+    private static final int TOTAL_ROUNDS = 10;
 
     private final Socket p1;
     private final Socket p2;
@@ -24,7 +26,7 @@ public class GameSession implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("[Game #" + gameId + "] Session started.");
+        System.out.println("[Game #" + gameId + "] Session started. " + TOTAL_ROUNDS + " rounds.");
         try (
             BufferedReader in1  = new BufferedReader(new InputStreamReader(p1.getInputStream()));
             BufferedReader in2  = new BufferedReader(new InputStreamReader(p2.getInputStream()));
@@ -33,13 +35,13 @@ public class GameSession implements Runnable {
         ) {
             out1.println("WELCOME:PLAYER1:Game #" + gameId);
             out2.println("WELCOME:PLAYER2:Game #" + gameId);
-
             sendScores(out1, out2);
 
-            while (true) {
+            while (roundNumber < TOTAL_ROUNDS) {
                 roundNumber++;
-                out1.println("ROUND:" + roundNumber);
-                out2.println("ROUND:" + roundNumber);
+
+                out1.println("ROUND:" + roundNumber + ":" + TOTAL_ROUNDS);
+                out2.println("ROUND:" + roundNumber + ":" + TOTAL_ROUNDS);
 
                 String move1 = in1.readLine();
                 String move2 = in2.readLine();
@@ -48,46 +50,52 @@ public class GameSession implements Runnable {
                     System.out.println("[Game #" + gameId + "] A player disconnected.");
                     if (move1 == null) out2.println("OPPONENT_LEFT");
                     if (move2 == null) out1.println("OPPONENT_LEFT");
-                    break;
+                    return;
                 }
 
                 move1 = move1.trim().toLowerCase();
                 move2 = move2.trim().toLowerCase();
-                System.out.println("[Game #" + gameId + "] P1=" + move1 + " | P2=" + move2);
+                System.out.println("[Game #" + gameId + "] R" + roundNumber
+                        + " P1=" + move1 + " | P2=" + move2);
 
                 String resultCode = getResultCode(move1, move2);
                 if (resultCode.equals("P1_WIN"))      score1++;
                 else if (resultCode.equals("P2_WIN")) score2++;
 
-                // Each player gets: RESULT:<opponent_move>:<result_code>:<round>
                 out1.println("RESULT:" + move2 + ":" + resultCode + ":" + roundNumber);
                 out2.println("RESULT:" + move1 + ":" + resultCode + ":" + roundNumber);
-
                 sendScores(out1, out2);
 
                 System.out.println("[Game #" + gameId + "] " + resultCode
-                    + " | Score: " + score1 + "-" + score2);
+                        + " | Score: " + score1 + "-" + score2);
             }
+
+            // All 10 rounds done - determine overall winner
+            String overallWinner;
+            if (score1 > score2)       overallWinner = "P1_WIN";
+            else if (score2 > score1)  overallWinner = "P2_WIN";
+            else                       overallWinner = "DRAW";
+
+            // GAME_OVER:<winner>:<p1score>:<p2score>
+            out1.println("GAME_OVER:" + overallWinner + ":" + score1 + ":" + score2);
+            out2.println("GAME_OVER:" + overallWinner + ":" + score1 + ":" + score2);
+
+            System.out.println("[Game #" + gameId + "] GAME OVER -> " + overallWinner
+                    + " | Final: " + score1 + "-" + score2);
+
         } catch (IOException e) {
             System.out.println("[Game #" + gameId + "] Session ended: " + e.getMessage());
         } finally {
             closeQuietly(p1);
             closeQuietly(p2);
-            System.out.println("[Game #" + gameId + "] Closed. Final: " + score1 + "-" + score2);
         }
     }
 
-    /**
-     * Sends scores to both players — each player sees their own score first.
-     */
     private void sendScores(PrintWriter out1, PrintWriter out2) {
         out1.println("SCORE:" + score1 + ":" + score2);
         out2.println("SCORE:" + score2 + ":" + score1);
     }
 
-    /**
-     * Returns P1_WIN, P2_WIN, or DRAW based on the two moves.
-     */
     private String getResultCode(String m1, String m2) {
         if (m1.equals(m2)) return "DRAW";
         if ((m1.equals("rock")     && m2.equals("scissors")) ||
